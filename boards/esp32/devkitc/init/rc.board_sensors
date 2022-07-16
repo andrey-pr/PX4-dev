@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# PX4 FMUv4 specific board sensors init
+#------------------------------------------------------------------------------
+
+board_adc start
+
+bmp280 -I start
+

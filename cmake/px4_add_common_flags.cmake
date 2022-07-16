@@ -41,56 +41,107 @@
 #		px4_add_common_flags()
 #
 function(px4_add_common_flags)
+	if(CONFIG_ARCH_CHIP_ESP32)
+		add_compile_options(
+			-g # always build debug symbols
 
-	add_compile_options(
-		-g # always build debug symbols
+			# optimization options
+			-fdata-sections
+			-ffunction-sections
+			-fomit-frame-pointer
+			-fmerge-all-constants
 
-		# optimization options
-		-fdata-sections
-		-ffunction-sections
-		-fomit-frame-pointer
-		-fmerge-all-constants
+			#-funsafe-math-optimizations # Enables -fno-signed-zeros, -fno-trapping-math, -fassociative-math and -freciprocal-math
+			-fno-signed-zeros	# Allow optimizations for floating-point arithmetic that ignore the signedness of zero
+			-fno-trapping-math	# Compile code assuming that floating-point operations cannot generate user-visible traps
+			#-fassociative-math	# Allow re-association of operands in series of floating-point operations
+			-freciprocal-math	# Allow the reciprocal of a value to be used instead of dividing by the value if this enables optimizations
 
-		#-funsafe-math-optimizations # Enables -fno-signed-zeros, -fno-trapping-math, -fassociative-math and -freciprocal-math
-		-fno-signed-zeros	# Allow optimizations for floating-point arithmetic that ignore the signedness of zero
-		-fno-trapping-math	# Compile code assuming that floating-point operations cannot generate user-visible traps
-		#-fassociative-math	# Allow re-association of operands in series of floating-point operations
-		-freciprocal-math	# Allow the reciprocal of a value to be used instead of dividing by the value if this enables optimizations
+			-fno-math-errno		# Do not set errno after calling math functions that are executed with a single instruction, e.g., sqrt
 
-		-fno-math-errno		# Do not set errno after calling math functions that are executed with a single instruction, e.g., sqrt
+			-fno-strict-aliasing
 
-		-fno-strict-aliasing
+			# visibility
+			-fvisibility=hidden
+			-include visibility.h
 
-		# visibility
-		-fvisibility=hidden
-		-include visibility.h
+			# Warnings
+			-Wall
+			-Wextra
+			-Werror
 
-		# Warnings
-		-Wall
-		-Wextra
-		-Werror
+			-Warray-bounds
+			-Wcast-align
+			-Wdisabled-optimization
+			-Wdouble-promotion
+			-Wno-fatal-errors
+			-Wno-float-equal
+			-Wformat-security
+			-Winit-self
+			-Wlogical-op
+			-Wpointer-arith
+			-Wshadow
+			-Wuninitialized
+			-Wunknown-pragmas
+			-Wunused-variable
 
-		-Warray-bounds
-		-Wcast-align
-		-Wdisabled-optimization
-		-Wdouble-promotion
-		-Wfatal-errors
-		-Wfloat-equal
-		-Wformat-security
-		-Winit-self
-		-Wlogical-op
-		-Wpointer-arith
-		-Wshadow
-		-Wuninitialized
-		-Wunknown-pragmas
-		-Wunused-variable
+			# disabled warnings
+			-Wno-missing-field-initializers
+			-Wno-missing-include-dirs # TODO: fix and enable
+			-Wno-unused-parameter
 
-		# disabled warnings
-		-Wno-missing-field-initializers
-		-Wno-missing-include-dirs # TODO: fix and enable
-		-Wno-unused-parameter
+			)
+	else()
+		add_compile_options(
+			-g # always build debug symbols
 
-		)
+			# optimization options
+			-fdata-sections
+			-ffunction-sections
+			-fomit-frame-pointer
+			-fmerge-all-constants
+
+			#-funsafe-math-optimizations # Enables -fno-signed-zeros, -fno-trapping-math, -fassociative-math and -freciprocal-math
+			-fno-signed-zeros	# Allow optimizations for floating-point arithmetic that ignore the signedness of zero
+			-fno-trapping-math	# Compile code assuming that floating-point operations cannot generate user-visible traps
+			#-fassociative-math	# Allow re-association of operands in series of floating-point operations
+			-freciprocal-math	# Allow the reciprocal of a value to be used instead of dividing by the value if this enables optimizations
+
+			-fno-math-errno		# Do not set errno after calling math functions that are executed with a single instruction, e.g., sqrt
+
+			-fno-strict-aliasing
+
+			# visibility
+			-fvisibility=hidden
+			-include visibility.h
+
+			# Warnings
+			-Wall
+			-Wextra
+			-Werror
+
+			-Warray-bounds
+			-Wcast-align
+			-Wdisabled-optimization
+			-Wdouble-promotion
+			-Wfatal-errors
+			-Wfloat-equal
+			-Wformat-security
+			-Winit-self
+			-Wlogical-op
+			-Wpointer-arith
+			-Wshadow
+			-Wuninitialized
+			-Wunknown-pragmas
+			-Wunused-variable
+
+			# disabled warnings
+			-Wno-missing-field-initializers
+			-Wno-missing-include-dirs # TODO: fix and enable
+			-Wno-unused-parameter
+
+			)
+	endif()
 
 	# compiler specific flags
 	if (("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang") OR ("${CMAKE_CXX_COMPILER_ID}" MATCHES "AppleClang"))

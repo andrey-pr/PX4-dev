@@ -37,6 +37,9 @@ endif()
 
 include(cygwin_cygpath)
 
+if(CONFIG_ARCH_CHIP_ESP32)
+	link_directories(${PX4_SOURCE_DIR}/platforms/nuttx/NuttX/nuttx/arch/xtensa/src/chip/esp-wireless-drivers-3rdparty/libs/esp32)
+endif()
 add_executable(px4 ${PX4_SOURCE_DIR}/platforms/common/empty.c)
 set(FW_NAME ${PX4_BOARD_VENDOR}_${PX4_BOARD_MODEL}_${PX4_BOARD_LABEL}.elf)
 set_target_properties(px4 PROPERTIES OUTPUT_NAME ${FW_NAME})
@@ -117,12 +120,22 @@ if (NOT CONFIG_BUILD_FLAT)
 		nuttx_kc
 		)
 else()
-	list(APPEND nuttx_libs
-		nuttx_apps
-		nuttx_arch
-		nuttx_mm
-		nuttx_c
-		)
+	if(CONFIG_ARCH_CHIP_ESP32)
+		list(APPEND nuttx_libs
+			nuttx_apps
+			nuttx_arch
+			nuttx_mm
+			nuttx_c
+			nuttx_net
+			)
+	else()
+		list(APPEND nuttx_libs
+			nuttx_apps
+			nuttx_arch
+			nuttx_mm
+			nuttx_c
+			)
+	endif()
 endif()
 
 if(CONFIG_NET)
@@ -242,58 +255,166 @@ if (NOT CONFIG_BUILD_FLAT)
 	)
 
 else()
+	if(CONFIG_ARCH_CHIP_ESP32)
+		set(PX4_STARTUP_DIR ${PX4_SOURCE_DIR}/platforms/nuttx/NuttX/nuttx/arch/xtensa/src)
+		set(NUTTX_STARTUP_OBJS
 
-	target_link_libraries(nuttx_c INTERFACE nuttx_sched) # nxsched_get_streams
+		${PX4_STARTUP_DIR}/xtensa_vectors.o
+		${PX4_STARTUP_DIR}/xtensa_window_vector.o
+		${PX4_STARTUP_DIR}/xtensa_windowspill.o
+		${PX4_STARTUP_DIR}/xtensa_int_handlers.o
+		${PX4_STARTUP_DIR}/xtensa_user_handler.o
+		${PX4_STARTUP_DIR}/esp32_start.o
+		${PX4_STARTUP_DIR}/esp32_wdt.o
 
-	target_link_libraries(nuttx_arch
-		INTERFACE
-			drivers_board
-			arch_hrt
-			arch_board_reset
-	)
 
-	target_link_libraries(nuttx_c INTERFACE nuttx_drivers)
-	target_link_libraries(nuttx_drivers INTERFACE nuttx_c)
-	target_link_libraries(nuttx_xx INTERFACE nuttx_c)
-	target_link_libraries(nuttx_fs INTERFACE nuttx_c)
-
-	target_link_libraries(px4 PRIVATE
-
-		-nostartfiles
-		-nodefaultlibs
-		-nostdlib
-		-nostdinc++
-
-		-fno-exceptions
-		-fno-rtti
-		-Wl,--script=${NUTTX_CONFIG_DIR_CYG}/scripts/${SCRIPT_PREFIX}script.ld
-		-Wl,-Map=${PX4_CONFIG}.map
-		-Wl,--warn-common
-		-Wl,--gc-sections
-
-		-Wl,--start-group
-			${nuttx_libs}
-		-Wl,--end-group
-
-		m
-		gcc
+		# ${PX4_STARTUP_DIR}/xtensa_cpupause.o
 		)
 
-	if(NOT USE_LD_GOLD)
-		target_link_libraries(px4 PRIVATE -Wl,--print-memory-usage)
+		set(NUTTX_NETWORK_LIB
+		libcore.a
+		librtc.a
+		libnet80211.a
+		libpp.a
+		libsmartconfig.a
+		libespnow.a
+		libphy.a
+		libwpa_supplicant.a
+		)
+
+		execute_process(COMMAND touch ${NUTTX_STARTUP_OBJS}
+		WORKING_DIRECTORY ${PX4_SOURCE_DIR})
+
+		set_source_files_properties(
+			${NUTTX_STARTUP_OBJS}
+			PROPERTIES
+			EXTERNAL_OBJECT true
+			GENERATED true)
+
+		target_link_libraries(nuttx_c INTERFACE nuttx_sched) # nxsched_get_streams
+
+		target_link_libraries(nuttx_arch
+			INTERFACE
+				drivers_board
+				arch_hrt
+				arch_board_reset
+				-Wl,--start-group
+				${NUTTX_NETWORK_LIB}
+				-Wl,--end-group
+
+
+				# -lcore -lrtc -lnet80211 -lpp -lsmartconfig -lespnow -lphy -lwpa_supplicant
+		)
+
+
+		# add_library(esp32_lib OBJECT
+		# 		${PX4_SOURCE_DIR}/boards/px4/esp32/libs/libphy.a
+		# 		${PX4_SOURCE_DIR}/boards/px4/esp32/libs/libwapi.a)
+
+		target_link_libraries(nuttx_c INTERFACE nuttx_drivers)
+		target_link_libraries(nuttx_drivers INTERFACE nuttx_c nuttx_fs)
+		target_link_libraries(nuttx_xx INTERFACE nuttx_c)
+		target_link_libraries(nuttx_fs INTERFACE nuttx_c nuttx_net)
+		target_link_libraries(nuttx_net INTERFACE nuttx_mm)
+
+		target_link_libraries(px4 PRIVATE
+			-nostartfiles
+			-nodefaultlibs
+			-nostdlib
+			-nostdinc++
+			-mlongcalls
+			-fno-exceptions
+			-fno-rtti
+			-Wl,--cref
+
+			#-Wl,-T ${NUTTX_CONFIG_DIR_CYG}/scripts/${SCRIPT_PREFIX}script.ld
+			-Wl,-T ${NUTTX_CONFIG_DIR_CYG}/scripts/${SCRIPT_PREFIX}esp32_out.ld
+			-T ${NUTTX_CONFIG_DIR_CYG}/scripts/${SCRIPT_PREFIX}esp32.ld
+			-T ${NUTTX_CONFIG_DIR_CYG}/scripts/${SCRIPT_PREFIX}esp32_rom.ld
+			-Wl,-Map=${PX4_CONFIG}.map
+
+			-Wl,--gc-sections
+
+			-Wl,--start-group
+				${nuttx_libs}
+				${NUTTX_STARTUP_OBJS}
+				${NUTTX_NETWORK_LIB}
+
+			-Wl,--end-group
+			m
+			gcc
+			)
+
+		if(NOT USE_LD_GOLD)
+			target_link_libraries(px4 PRIVATE -Wl,--print-memory-usage)
+		endif()
+
+		target_link_libraries(px4 PRIVATE ${module_libraries})
+
+		if(config_romfs_root)
+			add_subdirectory(${PX4_SOURCE_DIR}/ROMFS ${PX4_BINARY_DIR}/ROMFS)
+			target_link_libraries(px4 PRIVATE romfs)
+		endif()
+
+		add_custom_command(OUTPUT ${PX4_BINARY_OUTPUT}
+			#COMMAND ${CMAKE_OBJCOPY} -O binary ${PX4_BINARY_DIR_REL}/${FW_NAME} ${PX4_BINARY_OUTPUT}
+			COMMAND esptool --chip esp32 elf2image -o ${PX4_BINARY_OUTPUT} ${PX4_BINARY_DIR_REL}/${FW_NAME}
+			COMMAND du ${PX4_BINARY_OUTPUT} -h
+			DEPENDS px4
+		)
+	else()
+		target_link_libraries(nuttx_c INTERFACE nuttx_sched) # nxsched_get_streams
+
+		target_link_libraries(nuttx_arch
+			INTERFACE
+				drivers_board
+				arch_hrt
+				arch_board_reset
+		)
+
+		target_link_libraries(nuttx_c INTERFACE nuttx_drivers)
+		target_link_libraries(nuttx_drivers INTERFACE nuttx_c)
+		target_link_libraries(nuttx_xx INTERFACE nuttx_c)
+		target_link_libraries(nuttx_fs INTERFACE nuttx_c)
+
+		target_link_libraries(px4 PRIVATE
+
+			-nostartfiles
+			-nodefaultlibs
+			-nostdlib
+			-nostdinc++
+
+			-fno-exceptions
+			-fno-rtti
+			-Wl,--script=${NUTTX_CONFIG_DIR_CYG}/scripts/${SCRIPT_PREFIX}script.ld
+			-Wl,-Map=${PX4_CONFIG}.map
+			-Wl,--warn-common
+			-Wl,--gc-sections
+
+			-Wl,--start-group
+				${nuttx_libs}
+			-Wl,--end-group
+
+			m
+			gcc
+			)
+
+		if(NOT USE_LD_GOLD)
+			target_link_libraries(px4 PRIVATE -Wl,--print-memory-usage)
+		endif()
+
+		target_link_libraries(px4 PRIVATE ${module_libraries})
+
+		if(config_romfs_root)
+			add_subdirectory(${PX4_SOURCE_DIR}/ROMFS ${PX4_BINARY_DIR}/ROMFS)
+			target_link_libraries(px4 PRIVATE romfs)
+		endif()
+
+		add_custom_command(OUTPUT ${PX4_BINARY_OUTPUT}
+			COMMAND ${CMAKE_OBJCOPY} -O binary ${PX4_BINARY_DIR_REL}/${FW_NAME} ${PX4_BINARY_OUTPUT}
+			DEPENDS px4
+		)
 	endif()
-
-	target_link_libraries(px4 PRIVATE ${module_libraries})
-
-	if(config_romfs_root)
-		add_subdirectory(${PX4_SOURCE_DIR}/ROMFS ${PX4_BINARY_DIR}/ROMFS)
-		target_link_libraries(px4 PRIVATE romfs)
-	endif()
-
-	add_custom_command(OUTPUT ${PX4_BINARY_OUTPUT}
-		COMMAND ${CMAKE_OBJCOPY} -O binary ${PX4_BINARY_DIR_REL}/${FW_NAME} ${PX4_BINARY_OUTPUT}
-		DEPENDS px4
-	)
 
 endif()
 
