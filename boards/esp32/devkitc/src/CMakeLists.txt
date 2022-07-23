@@ -39,6 +39,7 @@ add_library(drivers_board
 	timer_config.cpp
 	esp32_board_wlan.c
 	esp32_board_spiflash.c
+	mtd.cpp
 )
 
 target_link_libraries(drivers_board

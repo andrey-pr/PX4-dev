@@ -1,0 +1,11 @@
+#!/bin/sh
+#
+# PX4 FMUv4 specific board sensors init
+#------------------------------------------------------------------------------
+
+ifup wlan1
+ifdown wlan0
+dhcpd_start wlan1
+wapi psk wlan1 11111111 1 1
+wapi essid wlan1 nuttxap 1
+mavlink start -u 14556 -p -r 4096 -n wlan1
