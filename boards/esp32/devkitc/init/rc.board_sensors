@@ -6,4 +6,5 @@
 board_adc start
 
 bmp280 -I start
+mpu9250_i2c -I -a 0x68 start
 
